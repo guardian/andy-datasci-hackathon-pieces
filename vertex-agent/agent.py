@@ -1,67 +1,67 @@
 import datetime
 from zoneinfo import ZoneInfo
 from google.adk.agents import Agent
+import requests
+import os
+from google import genai
+from google.cloud import aiplatform
 
-def get_weather(city: str) -> dict:
-    """Retrieves the current weather report for a specified city.
+# ==== Google connection
+PROJECT_ID = "guardian-hackathon"  # @param {type: "string", placeholder: "[your-project-id]", isTemplate: true}
+if not PROJECT_ID or PROJECT_ID == "[your-project-id]":
+    PROJECT_ID = str(os.environ.get("GOOGLE_CLOUD_PROJECT"))
+
+LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "europe-west2")
+
+
+client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
+# ==========
+
+INDEX_ENDPOINT_ID = "1312465039843655680"
+INDEX_ENDPOINT_NAME = f"projects/{PROJECT_ID}/locations/{LOCATION}/indexEndpoints/{INDEX_ENDPOINT_ID}"
+
+
+
+# initialise clients
+aiplatform.init(project=PROJECT_ID, location=LOCATION)
+index_endpoint = aiplatform.MatchingEngineIndexEndpoint(index_endpoint_name=INDEX_ENDPOINT_NAME)
+DEPLOYED_INDEX_ID = "headlines_vector_search_ab_1746702595145"
+TEXT_EMBEDDING_MODEL_ID = "text-embedding-005"  # @param {type: "string"}
+
+def get_from_guardian(path: str) -> dict:
+    """
+    Retrives a full article from the Guardian.
 
     Args:
-        city (str): The name of the city for which to retrieve the weather report.
-
-    Returns:
-        dict: status and result or error msg.
+      path (str) - the article path to look up. This must be a valid path found via search
     """
-    if city.lower() == "new york":
+    CapiKey = os.environ["CAPI_KEY"] or "test"
+
+    url = f"https://content.guardianapis.com/{path}?api-key={CapiKey}&show-fields=all"
+    response = requests.get(url)
+    if response.status_code==200:
+        response_body = response.json()
         return {
             "status": "success",
-            "report": (
-                "The weather in New York is sunny with a temperature of 25 degrees"
-                " Celsius (77 degrees Fahrenheit)."
-            ),
+            "headline": response_body["response"]["content"]["fields"]["headline"],
+            "article_text": response_body["response"]["content"]["fields"]["bodyText"],
+            "published": response_body["response"]["content"]["fields"]["firstPublicationDate"],
         }
     else:
+        error = response.text()
         return {
             "status": "error",
-            "error_message": f"Weather information for '{city}' is not available.",
+            "error": error
         }
-
-
-def get_current_time(city: str) -> dict:
-    """Returns the current time in a specified city.
-
-    Args:
-        city (str): The name of the city for which to retrieve the current time.
-
-    Returns:
-        dict: status and result or error msg.
-    """
-
-    if city.lower() == "new york":
-        tz_identifier = "America/New_York"
-    else:
-        return {
-            "status": "error",
-            "error_message": (
-                f"Sorry, I don't have timezone information for {city}."
-            ),
-        }
-
-    tz = ZoneInfo(tz_identifier)
-    now = datetime.datetime.now(tz)
-    report = (
-        f'The current time in {city} is {now.strftime("%Y-%m-%d %H:%M:%S %Z%z")}'
-    )
-    return {"status": "success", "report": report}
-
-
+    
 root_agent = Agent(
-    name="weather_time_agent",
+    name="news_agent",
     model="gemini-2.0-flash",
     description=(
-        "Agent to answer questions about the time and weather in a city."
+        "Agent to find and summarise relevant news articles"
     ),
     instruction=(
-        "You are a helpful agent who can answer user questions about the time and weather in a city."
+        "You are a helpful agent who can search for content on the Guardian to help explain a complex and disturbing world to the huddled masses"
     ),
-    tools=[get_weather, get_current_time],
+    tools=[get_from_guardian],
 )
