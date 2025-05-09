@@ -1,8 +1,11 @@
 pandas==2.2.3
 fastparquet==2024.11.0
+pyarrow==20.0.0
 requests==2.32.3
 google-api-core
 google-auth
 google-cloud-storage==3.1.0
+google-cloud-bigquery==3.31.0
+pandas-gbq==0.28.0
 sentence-transformers==4.1.0
 opensearch-py==2.8.0
