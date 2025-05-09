@@ -52,6 +52,7 @@ def get_from_guardian(path: str) -> dict:
             "status": "success",
             "headline": response_body["response"]["content"]["fields"]["headline"],
             "article_text": response_body["response"]["content"]["fields"]["bodyText"],
+            "in_brief": response_body["response"]["content"]["fields"]["trailText"],
             "published": response_body["response"]["content"]["fields"]["firstPublicationDate"],
         }
     else:
@@ -112,14 +113,38 @@ def search_for_news(query: str) -> dict:
         "articles": matching_paths,
     }
 
+def get_current_time(city: str, tz_identifier: str) -> dict:
+    """Returns the current time in a specified city.
+
+    Args:
+        city (str): The name of the city for which to retrieve the current time.
+        tz_identifier (str): ISO timezone identifier for where the user is
+    Returns:
+        dict: status and result or error msg.
+    """
+
+    tz = ZoneInfo(tz_identifier)
+    now = datetime.datetime.now(tz)
+    report = (
+        f'The current time in {city} is {now.strftime("%Y-%m-%d %H:%M:%S %Z%z")}'
+    )
+    return {"status": "success", "report": report}
+
 root_agent = Agent(
     name="news_agent",
     model="gemini-2.0-flash",
+    # hmm these should would but don't appear to be quite correct
+    #model="gemini-2-5-flash-preview-04-17",
+    #model="gemini-2-5-pro-preview-05-06",
     description=(
         "Agent to find and summarise relevant news articles"
     ),
     instruction=(
-        "You are a helpful agent who can search for content on the Guardian to help explain a complex and disturbing world to the huddled masses"
+        """You are a helpful agent whose job is to summarise and explain both current news and the context in which it occurs in the world.  Try to always present the user with some interesting information, even if you think it's vague; you can ask for further clarification after having presented something more general.
+
+        Rather than only list headlines, always try to read thes articles and present a brief summary of them
+        Assume that a user is based in the UK unless otherwise instructed.
+        """
     ),
-    tools=[get_from_guardian, search_for_news],
+    tools=[get_from_guardian, search_for_news, get_current_time],
 )

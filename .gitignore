@@ -1,2 +1,3 @@
 venv/
 *.parquet
+__pycache__
